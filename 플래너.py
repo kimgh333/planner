@@ -5,25 +5,42 @@ import json
 st.set_page_config(page_title="문제집 공부 플래너", layout="centered")
 st.title("📘 문제집 공부 플래너")
 
+if 'page_distribution' not in st.session_state:
+    st.session_state.page_distribution = {}
+
 with st.form("study_form"):
     book_title = st.text_input("문제집 이름", "수학의 정석")
     total_pages = st.number_input("총 페이지 수", min_value=1, value=300)
     start_date = st.date_input("시작일", datetime.today())
 
     st.markdown("### 📅 요일별 계획 설정")
-    days_selected = st.multiselect("공부할 요일을 선택하세요", 
-                                   ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                                   default=["Monday", "Wednesday", "Friday"])
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    days_selected = st.multiselect("공부할 요일을 선택하세요", days, default=list(st.session_state.page_distribution.keys()))
 
-    page_distribution = {}
+    # Remove unselected days from state
+    for day in list(st.session_state.page_distribution.keys()):
+        if day not in days_selected:
+            del st.session_state.page_distribution[day]
+
+    # Add newly selected days with default value
     for day in days_selected:
-        pages = st.number_input(f"{day}에 풀 페이지 수", min_value=1, max_value=100, value=10, key=day)
-        page_distribution[day] = pages
+        if day not in st.session_state.page_distribution:
+            st.session_state.page_distribution[day] = 10
+
+    for day in days_selected:
+        st.session_state.page_distribution[day] = st.number_input(
+            f"{day}에 풀 페이지 수",
+            min_value=1,
+            max_value=100,
+            value=st.session_state.page_distribution[day],
+            key=f"input_{day}"
+        )
 
     submitted = st.form_submit_button("📅 계획 생성하기")
 
 if submitted:
-    # 내부 요일 매핑
+    page_distribution = st.session_state.page_distribution
+
     weekday_map = {
         "Monday": 0,
         "Tuesday": 1,
@@ -56,28 +73,33 @@ if submitted:
 
     st.success(f"총 {len(plan)}일치 계획이 생성되었습니다!")
 
-    # 캘린더 출력용 HTML 코드 생성 (FullCalendar 사용)
     st.markdown("### 🗓️ 공부 계획 캘린더")
     calendar_events = json.dumps(plan)
-    
+
     fullcalendar_html = f'''
-    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css' rel='stylesheet' />
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js'></script>
+    <html>
+    <head>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js"></script>
+    </head>
+    <body>
     <div id='calendar'></div>
     <script>
       document.addEventListener('DOMContentLoaded', function() {{
         var calendarEl = document.getElementById('calendar');
         var calendar = new FullCalendar.Calendar(calendarEl, {{
           initialView: 'dayGridMonth',
+          height: 'auto',
           events: {calendar_events}
         }});
         calendar.render();
       }});
     </script>
     <style>
-      #calendar {{ max-width: 800px; margin: 20px auto; }}
+      #calendar {{ max-width: 900px; margin: 20px auto; }}
     </style>
+    </body>
+    </html>
     '''
 
-    # Streamlit에서 HTML+JS 임베딩
-    st.components.v1.html(fullcalendar_html, height=600, scrolling=True)
+    st.components.v1.html(fullcalendar_html, height=700, scrolling=True)

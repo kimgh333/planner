@@ -11,20 +11,41 @@ if 'books' not in st.session_state:
     st.session_state.books = []
 if 'book_count' not in st.session_state:
     st.session_state.book_count = 0
+if 'pending_book' not in st.session_state:
+    st.session_state.pending_book = None
 
-# --- 문제집 추가 버튼 ---
-if st.button("➕ 문제집 추가"):
-    new_book = {
-        'id': st.session_state.book_count,
-        'title': f"문제집 {st.session_state.book_count+1}",
-        'total_pages': 100,
-        'start_date': datetime.today(),
-        'days_selected': ["Monday", "Wednesday", "Friday"],
-        'page_distribution': {"Monday": 10, "Wednesday": 10, "Friday": 10},
-        'plan': []
-    }
-    st.session_state.books.append(new_book)
-    st.session_state.book_count += 1
+# --- 새 문제집 기본 UI ---
+with st.expander("➕ 새 문제집 입력", expanded=True):
+    new_title = st.text_input("문제집 이름", key="new_title")
+    new_pages = st.number_input("총 페이지 수", min_value=1, value=100, key="new_pages")
+    new_start = st.date_input("시작일", value=datetime.today(), key="new_start")
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    new_days = st.multiselect("공부할 요일", days, default=["Monday", "Wednesday", "Friday"], key="new_days")
+
+    page_distribution = {}
+    for day in new_days:
+        page_distribution[day] = st.number_input(
+            f"{day}에 풀 페이지 수", min_value=1, max_value=100, value=10,
+            key=f"new_dist_{day}"
+        )
+
+    if st.button("📥 문제집 추가", key="add_book"):
+        st.session_state.books.append({
+            'id': st.session_state.book_count,
+            'title': new_title,
+            'total_pages': new_pages,
+            'start_date': new_start,
+            'days_selected': new_days,
+            'page_distribution': page_distribution,
+            'plan': []
+        })
+        st.session_state.book_count += 1
+        # 초기화
+        st.session_state.new_title = ""
+        st.session_state.new_pages = 100
+        st.session_state.new_days = ["Monday", "Wednesday", "Friday"]
+        for day in days:
+            st.session_state[f"new_dist_{day}"] = 10
 
 # --- 요일 매핑 ---
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -35,14 +56,13 @@ index_to_weekday = {i: day for day, i in weekday_map.items()}
 all_events = []
 
 for book in st.session_state.books:
-    with st.expander(f"📘 {book['title']} 설정", expanded=True):
+    with st.expander(f"📘 {book['title']} 설정", expanded=False):
         book['title'] = st.text_input("문제집 이름", book['title'], key=f"title_{book['id']}")
         book['total_pages'] = st.number_input("총 페이지 수", min_value=1, value=book['total_pages'], key=f"pages_{book['id']}")
         book['start_date'] = st.date_input("시작일", value=book['start_date'], key=f"start_{book['id']}")
 
         book['days_selected'] = st.multiselect("공부할 요일", days, default=book['days_selected'], key=f"days_{book['id']}")
 
-        # 동기화된 페이지 수 입력
         for day in list(book['page_distribution'].keys()):
             if day not in book['days_selected']:
                 del book['page_distribution'][day]
@@ -59,7 +79,6 @@ for book in st.session_state.books:
                 key=f"dist_{book['id']}_{day}"
             )
 
-        # 계획 생성 버튼
         if st.button(f"📅 {book['title']} 계획 생성", key=f"plan_{book['id']}"):
             current_page = 1
             current_date = datetime.combine(book['start_date'], datetime.min.time())
@@ -86,6 +105,9 @@ if all_events:
     st.subheader("📅 통합 공부 캘린더")
     events_json = json.dumps(all_events)
 
+    # 강제로 4월 기준으로 날짜 생성 보이기
+    default_april = datetime(datetime.today().year, 4, 1).strftime("%Y-%m-%d")
+
     calendar_html = f'''
     <!DOCTYPE html>
     <html>
@@ -102,8 +124,9 @@ if all_events:
       <script>
         document.addEventListener('DOMContentLoaded', function() {{
           var calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {{
-            initialView: 'dayGridMonth',
+            initialView: 'dayGridWeek',
             height: 'auto',
+            initialDate: '{default_april}',
             events: {events_json}
           }});
           calendar.render();
@@ -115,4 +138,4 @@ if all_events:
 
     encoded_html = base64.b64encode(calendar_html.encode()).decode()
     src = f"data:text/html;base64,{encoded_html}"
-    st.components.v1.html(f'<iframe src="{src}" width="100%" height="700" style="border:none;"></iframe>', height=720)
+    st.components.v1.html(f'<iframe src="{src}" width="100%" height="720" style="border:none;"></iframe>', height=740)

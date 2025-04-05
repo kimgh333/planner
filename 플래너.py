@@ -11,74 +11,66 @@ if 'books' not in st.session_state:
     st.session_state.books = []
 if 'book_count' not in st.session_state:
     st.session_state.book_count = 0
-if 'pending_book' not in st.session_state:
-    st.session_state.pending_book = None
-
-# --- 새 문제집 기본 UI ---
-with st.expander("➕ 새 문제집 입력", expanded=True):
-    new_title = st.text_input("문제집 이름", key="new_title")
-    new_pages = st.number_input("총 페이지 수", min_value=1, value=100, key="new_pages")
-    new_start = st.date_input("시작일", value=datetime.today(), key="new_start")
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    new_days = st.multiselect("공부할 요일", days, default=["Monday", "Wednesday", "Friday"], key="new_days")
-
-    page_distribution = {}
-    for day in new_days:
-        page_distribution[day] = st.number_input(
-            f"{day}에 풀 페이지 수", min_value=1, max_value=100, value=10,
-            key=f"new_dist_{day}"
-        )
-
-    if st.button("📥 문제집 추가", key="add_book"):
-        st.session_state.books.append({
-            'id': st.session_state.book_count,
-            'title': new_title,
-            'total_pages': new_pages,
-            'start_date': new_start,
-            'days_selected': new_days,
-            'page_distribution': page_distribution,
-            'plan': []
-        })
-        st.session_state.book_count += 1
-        # 초기화
-        st.session_state.new_title = ""
-        st.session_state.new_pages = 100
-        st.session_state.new_days = ["Monday", "Wednesday", "Friday"]
-        for day in days:
-            st.session_state[f"new_dist_{day}"] = 10
 
 # --- 요일 매핑 ---
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 weekday_map = {day: i for i, day in enumerate(days)}
-index_to_weekday = {i: day for day, i in weekday_map.items()}
+index_to_weekday = {i: day for day, i in enumerate(weekday_map)}
 
-# --- 각 문제집 UI 및 계획 생성 ---
+# --- 문제집 추가 모달 ---
+with st.expander("➕ 문제집 추가 (펼쳐서 입력)", expanded=False):
+    if 'new_title' not in st.session_state:
+        st.session_state['new_title'] = ""
+    if 'new_pages' not in st.session_state:
+        st.session_state['new_pages'] = 100
+    if 'new_start' not in st.session_state:
+        st.session_state['new_start'] = datetime.today()
+    if 'new_days' not in st.session_state:
+        st.session_state['new_days'] = ["Monday", "Wednesday", "Friday"]
+    for day in days:
+        if f"new_dist_{day}" not in st.session_state:
+            st.session_state[f"new_dist_{day}"] = 10
+
+    st.session_state.new_title = st.text_input("문제집 이름", st.session_state.new_title, key="new_title")
+    st.session_state.new_pages = st.number_input("총 페이지 수", min_value=1, value=st.session_state.new_pages, key="new_pages")
+    st.session_state.new_start = st.date_input("시작일", value=st.session_state.new_start, key="new_start")
+    st.session_state.new_days = st.multiselect("공부할 요일", days, default=st.session_state.new_days, key="new_days")
+
+    page_distribution = {}
+    for day in st.session_state.new_days:
+        st.session_state[f"new_dist_{day}"] = st.number_input(
+            f"{day}에 풀 페이지 수", min_value=1, max_value=100, value=st.session_state[f"new_dist_{day}"],
+            key=f"new_dist_{day}"
+        )
+        page_distribution[day] = st.session_state[f"new_dist_{day}"]
+
+    if st.button("📥 문제집 추가", key="add_book"):
+        st.session_state.books.append({
+            'id': st.session_state.book_count,
+            'title': st.session_state.new_title,
+            'total_pages': st.session_state.new_pages,
+            'start_date': st.session_state.new_start,
+            'days_selected': st.session_state.new_days,
+            'page_distribution': page_distribution,
+            'plan': []
+        })
+        st.session_state.book_count += 1
+        # 상태 초기화
+        del st.session_state['new_title']
+        del st.session_state['new_pages']
+        del st.session_state['new_start']
+        del st.session_state['new_days']
+        for day in days:
+            key = f"new_dist_{day}"
+            if key in st.session_state:
+                del st.session_state[key]
+
+# --- 문제집 리스트와 계획 생성 ---
+st.subheader("📚 등록된 문제집")
 all_events = []
 
 for book in st.session_state.books:
-    with st.expander(f"📘 {book['title']} 설정", expanded=False):
-        book['title'] = st.text_input("문제집 이름", book['title'], key=f"title_{book['id']}")
-        book['total_pages'] = st.number_input("총 페이지 수", min_value=1, value=book['total_pages'], key=f"pages_{book['id']}")
-        book['start_date'] = st.date_input("시작일", value=book['start_date'], key=f"start_{book['id']}")
-
-        book['days_selected'] = st.multiselect("공부할 요일", days, default=book['days_selected'], key=f"days_{book['id']}")
-
-        for day in list(book['page_distribution'].keys()):
-            if day not in book['days_selected']:
-                del book['page_distribution'][day]
-        for day in book['days_selected']:
-            if day not in book['page_distribution']:
-                book['page_distribution'][day] = 10
-
-        for day in book['days_selected']:
-            book['page_distribution'][day] = st.number_input(
-                f"{day}에 풀 페이지 수",
-                min_value=1,
-                max_value=100,
-                value=book['page_distribution'][day],
-                key=f"dist_{book['id']}_{day}"
-            )
-
+    with st.expander(f"📘 {book['title']}", expanded=False):
         if st.button(f"📅 {book['title']} 계획 생성", key=f"plan_{book['id']}"):
             current_page = 1
             current_date = datetime.combine(book['start_date'], datetime.min.time())
@@ -97,15 +89,23 @@ for book in st.session_state.books:
                 current_date += timedelta(days=1)
             book['plan'] = plan
 
-# --- 모든 계획 모아서 달력으로 출력 ---
-for book in st.session_state.books:
     all_events.extend(book['plan'])
 
+# --- 오늘 할 일 보여주기 ---
+st.subheader("📌 오늘 할 공부")
+today = datetime.today().strftime("%Y-%m-%d")
+today_tasks = [event for event in all_events if event['start'] == today]
+
+if today_tasks:
+    for task in today_tasks:
+        st.success(f"✅ {task['title']}")
+else:
+    st.info("오늘은 할 공부가 없습니다. 😊")
+
+# --- 달력 표시 ---
 if all_events:
     st.subheader("📅 통합 공부 캘린더")
     events_json = json.dumps(all_events)
-
-    # 강제로 4월 기준으로 날짜 생성 보이기
     default_april = datetime(datetime.today().year, 4, 1).strftime("%Y-%m-%d")
 
     calendar_html = f'''
@@ -139,3 +139,6 @@ if all_events:
     encoded_html = base64.b64encode(calendar_html.encode()).decode()
     src = f"data:text/html;base64,{encoded_html}"
     st.components.v1.html(f'<iframe src="{src}" width="100%" height="720" style="border:none;"></iframe>', height=740)
+else:
+    st.info("왼쪽 상단의 '문제집 추가' 버튼을 눌러 계획을 세워보세요!")
+

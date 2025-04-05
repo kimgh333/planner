@@ -31,14 +31,14 @@ with st.expander("➕ 문제집 추가 (펼쳐서 입력)", expanded=False):
         if f"new_dist_{day}" not in st.session_state:
             st.session_state[f"new_dist_{day}"] = 10
 
-    st.session_state.new_title = st.text_input("문제집 이름", st.session_state.new_title, key="new_title")
-    st.session_state.new_pages = st.number_input("총 페이지 수", min_value=1, value=st.session_state.new_pages, key="new_pages")
-    st.session_state.new_start = st.date_input("시작일", value=st.session_state.new_start, key="new_start")
-    st.session_state.new_days = st.multiselect("공부할 요일", days, default=st.session_state.new_days, key="new_days")
+    st.text_input("문제집 이름", key="new_title")
+    st.number_input("총 페이지 수", min_value=1, value=st.session_state.new_pages, key="new_pages")
+    st.date_input("시작일", value=st.session_state.new_start, key="new_start")
+    st.multiselect("공부할 요일", days, default=st.session_state.new_days, key="new_days")
 
     page_distribution = {}
     for day in st.session_state.new_days:
-        st.session_state[f"new_dist_{day}"] = st.number_input(
+        st.number_input(
             f"{day}에 풀 페이지 수", min_value=1, max_value=100, value=st.session_state[f"new_dist_{day}"],
             key=f"new_dist_{day}"
         )
@@ -141,4 +141,3 @@ if all_events:
     st.components.v1.html(f'<iframe src="{src}" width="100%" height="720" style="border:none;"></iframe>', height=740)
 else:
     st.info("왼쪽 상단의 '문제집 추가' 버튼을 눌러 계획을 세워보세요!")
-
